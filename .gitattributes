@@ -1,0 +1,5 @@
+* text=auto eol=lf
+*.zip binary
+*.rom binary
+*.bin binary
+*.efi binary

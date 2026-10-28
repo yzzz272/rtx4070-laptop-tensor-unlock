@@ -1,0 +1,47 @@
+{
+  "project": "rtx4070-laptop-tensor-unlock",
+  "version": "0.1.0",
+  "distribution": "source-only",
+  "direct_base": {
+    "repository": "https://github.com/NekoMirra/rtx4060-laptop-tensor-unlock.git",
+    "commit": "7c6a43e470b21f79292fa3cf1453017d606b3e33"
+  },
+  "ada_core_reference": {
+    "repository": "https://github.com/JustAResearcher/gpu-unlock-ada.git",
+    "commit": "d28c485418c3d9d034cd4bac19200bc33dd3453b"
+  },
+  "verified_hardware": {
+    "system": "MECHREVO JiguangPro Series GM5AR7O",
+    "pci": "10de:2820",
+    "subsystem": "1d05:1297",
+    "bdf": "0000:01:00.0",
+    "vbios": "95.06.15.40.5F",
+    "chip": "0x196000a1",
+    "driver": "617.42"
+  },
+  "hardware_tested_manual_efi_sha256": "2929454ea73fe85bb67b1398f27cec18a6d98422562afac14d8dfe663209f2bb",
+  "hardware_result": {
+    "transaction_log_sha256": "427992bb5bd1aa1fe5fc4eaa7c1d4790ab9fffeef8c0c467a1306a53f699a51c",
+    "probe_output_sha256": "8f4e54186eda0801f125c5462aedaae0183265d6116fcac7bac27700c2bacfa9",
+    "stock_rate_ratio": "2.030-2.126",
+    "unlocked_rate_ratio": "0.989-1.054",
+    "status": "selectors, FLR persistence, GOP reconnect, Windows driver initialization and matched CUDA throughput verified"
+  },
+  "source_release_build": {
+    "zig": "0.14.1",
+    "survey2820_sha256": "bb4c3368402d52f049405e1170a1ceb25fc3d04aa706ee16ed3fa9b7adde4331",
+    "dryrun2820_sha256": "cbd05b2cc1372b60c591d4f322c4329266fb4c12802004cecbafa0826e4a8072",
+    "reltest2820_sha256": "f5d7c1dffbd362dad212ed70a3b49e12114eabab3f2169ed3884e5bf03cfb3fe",
+    "unlockm2820_sha256": "9577257553224682c4d467bd3c69783c6b89d5583b3a49eece2e172f0be8722e",
+    "note": "The cleaned source release is semantically equivalent for the exact target and passes simulated tests; users build locally and must still follow SURVEY/DRYRUN/RELTEST before UNLOCKM."
+  },
+  "safety_properties": [
+    "no automatic real-unlock build",
+    "no internal ESP or BootOrder installer",
+    "survey has all write, DMA, Bus Master, PCI write, display release and FLR gates closed",
+    "write-capable builds pin PCI ID, subsystem, BDF and FWSEC geometry",
+    "real transaction requires manual U confirmation"
+  ],
+  "private_inputs_published": false,
+  "nvidia_firmware_redistributed": false
+}

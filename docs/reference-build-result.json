@@ -1,0 +1,19 @@
+{
+  "SURVEY2820.EFI": {
+    "bytes": 79872,
+    "sha256": "bb4c3368402d52f049405e1170a1ceb25fc3d04aa706ee16ed3fa9b7adde4331"
+  },
+  "DRYRUN2820.EFI": {
+    "bytes": 79872,
+    "sha256": "cbd05b2cc1372b60c591d4f322c4329266fb4c12802004cecbafa0826e4a8072"
+  },
+  "RELTEST2820.EFI": {
+    "bytes": 80896,
+    "sha256": "f5d7c1dffbd362dad212ed70a3b49e12114eabab3f2169ed3884e5bf03cfb3fe"
+  },
+  "UNLOCKM2820.EFI": {
+    "bytes": 86016,
+    "sha256": "9577257553224682c4d467bd3c69783c6b89d5583b3a49eece2e172f0be8722e"
+  },
+  "zig": "0.14.1"
+}

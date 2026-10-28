@@ -1,0 +1,45 @@
+RTX 4070 Laptop 10de:2820 Windows UEFI unlocked probe
+2026-10-28T16:17:19+08:00
+tensor_probe.exe sha256 ff3096fa742b8da5cd1faa380ed69a5af1e678e2432535b438f85d2905bc4be4
+=== RUN 1 ===
+device            : NVIDIA GeForce RTX 4070 Laptop GPU
+sm count          : 36
+blocks x threads  : 72 x 256 (8 warps/block)
+mma iterations    : 20000
+
+mode                                 ms       TF/s
+f16 in / f16 accumulate           4.750     158.94
+f16 in / f32 accumulate           4.731     159.58
+bf16 in / f32 accumulate          4.788     157.67
+tf32 in / f32 accumulate          4.737      79.69
+fp32 fma (control)                0.164      17.99
+
+f16acc/f32acc ratio      : 0.996  (2.00 = half-rate locked, 1.00 = full rate)
+=== RUN 2 ===
+device            : NVIDIA GeForce RTX 4070 Laptop GPU
+sm count          : 36
+blocks x threads  : 72 x 256 (8 warps/block)
+mma iterations    : 20000
+
+mode                                 ms       TF/s
+f16 in / f16 accumulate           4.781     157.91
+f16 in / f32 accumulate           4.730     159.62
+bf16 in / f32 accumulate          4.781     157.91
+tf32 in / f32 accumulate          4.966      76.01
+fp32 fma (control)                0.168      17.57
+
+f16acc/f32acc ratio      : 0.989  (2.00 = half-rate locked, 1.00 = full rate)
+=== RUN 3 ===
+device            : NVIDIA GeForce RTX 4070 Laptop GPU
+sm count          : 36
+blocks x threads  : 72 x 256 (8 warps/block)
+mma iterations    : 20000
+
+mode                                 ms       TF/s
+f16 in / f16 accumulate           4.970     151.90
+f16 in / f32 accumulate           5.238     144.14
+bf16 in / f32 accumulate          5.001     150.96
+tf32 in / f32 accumulate          4.960      76.10
+fp32 fma (control)                0.155      19.08
+
+f16acc/f32acc ratio      : 1.054  (2.00 = half-rate locked, 1.00 = full rate)

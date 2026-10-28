@@ -1,0 +1,7 @@
+Direct Windows UEFI base:
+NekoMirra/rtx4060-laptop-tensor-unlock
+7c6a43e470b21f79292fa3cf1453017d606b3e33
+
+Ada core reference:
+JustAResearcher/gpu-unlock-ada
+d28c485418c3d9d034cd4bac19200bc33dd3453b
