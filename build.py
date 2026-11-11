@@ -4,16 +4,16 @@
 
 No GPU access and no installation. Images are PE-checked and reproducible.
 
-Always built:
+Default output (all five):
   SURVEY2820.EFI   read-only discovery for any single 10de:2820
   DRYRUN2820.EFI   exact target admission; every write/DMA/FLR gate closed
   RELTEST2820.EFI  exact target display release + reconnect; still no GPU write
   UNLOCKM2820.EFI  exact target real transaction, manual U confirmation
+  UNLOCKA2820.EFI  exact target real transaction, automatic after 3 s
 
-Only with --with-auto:
-  UNLOCKA2820.EFI  same transaction, runs automatically after the countdown
+--safe-only leaves out UNLOCKA2820, the only image that unlocks without a key.
 
-Usage: python build.py [--zig zig] [--out build] [--with-auto]
+Usage: python build.py [--zig zig] [--out build] [--safe-only]
 """
 import argparse, hashlib, importlib.util, json, os, subprocess, sys
 from pathlib import Path
@@ -39,8 +39,8 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--zig', default=os.environ.get('ZIG', 'zig'))
     ap.add_argument('--out', default='build')
-    ap.add_argument('--with-auto', action='store_true',
-                    help='also build UNLOCKA2820.EFI, which unlocks without a key press')
+    ap.add_argument('--safe-only', action='store_true',
+                    help='skip UNLOCKA2820, the image that unlocks without a key press')
     a = ap.parse_args()
     root = Path(__file__).resolve().parent
     os.chdir(root)
@@ -54,7 +54,7 @@ def main():
         raise RuntimeError('cannot load tools/pe_format.py')
     pe = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(pe)
-    variants = SAFE_VARIANTS + (AUTO_VARIANTS if a.with_auto else [])
+    variants = SAFE_VARIANTS + ([] if a.safe_only else AUTO_VARIANTS)
     report = {}
     for name, ident, defines in variants:
         objs = []

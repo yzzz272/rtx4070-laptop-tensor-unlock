@@ -22,7 +22,7 @@ registers exactly once.
 ## Before opening a pull request
 
 ```sh
-python build.py --out build --with-auto
+python build.py --out build
 python tools/check_reference_build.py     # must reproduce the recorded images
 
 CC="zig cc" sh tests/run-survey-tests.sh

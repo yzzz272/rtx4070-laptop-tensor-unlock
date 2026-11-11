@@ -111,7 +111,8 @@ TRANSACTION OK
 
 ## 构建模式
 
-`build.py` 默认生成四个镜像，加 `--with-auto` 会多生成一个。
+`build.py` 默认生成全部五个镜像；`--safe-only` 只生成前四个，去掉唯一能无按键
+自动解锁的 `UNLOCKA2820`。
 
 | 镜像 | 准入目标 | GPU 写入 | 显示释放 | 按键 |
 |---|---|---:|---:|---|
@@ -160,8 +161,8 @@ python scripts/make_assets.py --out assets
 
 ```powershell
 python build.py --zig C:\path\to\zig.exe --out build
-# 可选：自动镜像
-python build.py --zig C:\path\to\zig.exe --out build --with-auto
+# 只生成四个镜像，不含自动解锁
+python build.py --zig C:\path\to\zig.exe --out build --safe-only
 ```
 
 输出在 `build/`，并生成 `build/build-result.json`。镜像会做 PE 校验，并使用
@@ -218,12 +219,24 @@ sh tests/run-host-tests.sh /path/to/PROM-1MiB.bin assets
 > 绝不要选中系统盘。
 
 ```powershell
+# 即插即用布局（默认）：根目录就是自动解锁镜像
 python scripts/make_stick.py --build build --assets assets --out stick
-# 只生成一个阶段
-python scripts/make_stick.py --build build --assets assets --out stick --variant dryrun
+
+# 分阶段布局：每阶段一个目录，用于新机器首次验证
+python scripts/make_stick.py --build build --assets assets --out stick --layout staged
 ```
 
-每个阶段目录包含：
+默认布局是单根目录：
+
+```text
+EFI/BOOT/BOOTX64.EFI     <- UNLOCKA2820，自动
+GPU4090-ASSETS/...
+RECOVERY/                <- 其余四个镜像
+README-AUTO.txt
+SHA256SUMS
+```
+
+分阶段布局每阶段一个目录，各含：
 
 ```text
 EFI/BOOT/BOOTX64.EFI
@@ -231,7 +244,7 @@ GPU4090-ASSETS/...
 SHA256SUMS
 ```
 
-把某个阶段目录里的**内容**复制到 FAT32 U 盘根目录。同一时间只能存在一个
+把某个目录里的**内容**复制到 FAT32 U 盘根目录。同一时间只能存在一个
 `EFI/BOOT/BOOTX64.EFI`。
 
 `GPU4090-ASSETS` 和 `GPU4090-UNLOCK` 是上游遗留的路径名。保留它们是因为改名会
@@ -348,20 +361,47 @@ nvidia-smi
 
 ---
 
-## 关于自动化
+## 即插即用（插上就解锁，不插就不解锁）
 
-默认构建不生成自动真实解锁镜像，也不提供修改内置 ESP 或固件启动顺序的安装器。
-自动化不会让解锁永久化，它只是在每次开机时重复一次 UEFI 事务。
+默认 U 盘布局就是为这个行为准备的：
 
-如果确实需要「插上 U 盘、开机就解锁」：
+| 状态 | 结果 |
+|---|---|
+| 插着 U 盘冷启动 | 固件启动 U 盘 → 自动解锁 → 进入 Windows |
+| 拔掉 U 盘冷启动 | 固件回退到 Windows Boot Manager，GPU 保持原始状态 |
+
+要让固件优先尝试 U 盘，二选一：在固件设置里把 U 盘排在 Windows Boot Manager
+之前，或者注册一次固件启动项：
 
 ```powershell
-python build.py --zig C:\path\to\zig.exe --out build --with-auto
-python scripts/make_stick.py --build build --assets assets --out stick --variant auto
+# 预演：只显示将要做什么
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\usb_boot_entry.ps1
+
+# 创建启动项并排到第一位
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\usb_boot_entry.ps1 -Apply
+
+# 撤销
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\usb_boot_entry.ps1 -Remove -Apply
 ```
 
-然后在固件里把该 U 盘排在 Windows Boot Manager 之前。拔掉 U 盘应回退到 Windows。
-自动镜像同样只接受精确目标配置。
+该脚本只在以下条件全部成立时才动手：卷是可移动 FAT32、卷标符合预期、根目录镜像
+是发布版自动镜像（校验 SHA-256）、Secure Boot 已关闭、且没有已记录的启动项。
+它把启动项 GUID 记录在 `%ProgramData%\Rtx4070Unlock\usb-entry.json`，
+`-Remove` 可以精确撤销。
+
+依赖回退前，先确认这几件事：
+
+- **必须关闭快速启动。** 开着快速启动时，Windows 的「关机」可能完全跳过固件启动
+  路径，U 盘根本不会运行。执行 `powercfg /h off`。
+- **有些笔记本挑 USB 端口。** 为一个端口记录的设备路径在另一个端口可能不匹配；
+  启动项失效时重新执行 `-Apply`。
+- **自己验证回退。** 关机 → 拔掉 U 盘 → 开机，确认能进 Windows。如果固件报
+  「no boot device」而不是回退，就删掉启动项，改为每次用 F7 选 U 盘。
+- **睡眠唤醒、驱动重启、驱动更新**都会让 GPU 回到原始状态，只有经 U 盘的冷启动
+  才能恢复解锁。
+
+自动化不会让解锁永久化：选择器是易失寄存器，完全断电即清除。U 盘只是每次冷启动
+重复一次事务。
 
 ---
 
@@ -369,10 +409,11 @@ python scripts/make_stick.py --build build --assets assets --out stick --variant
 
 ```text
 target_2820.h                  精确写入目标
-build.py                       可复现构建（--with-auto 增加自动镜像）
+build.py                       可复现构建（--safe-only 去掉自动镜像）
 tools/check_reference_build.py 校验构建与记录哈希是否一致
 scripts/make_assets.py         从固定 NVIDIA 输入生成固件资产
-scripts/make_stick.py          生成分阶段 U 盘目录
+scripts/make_stick.py          生成即插即用或分阶段 U 盘布局
+scripts/usb_boot_entry.ps1     添加/删除 U 盘的固件启动项
 firmware/                      下载、校验与生成脚本
 vendor/                        保留的事务核心与 EDK2 头文件
 compat/                        UEFI 兼容层

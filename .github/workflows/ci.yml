@@ -31,7 +31,7 @@ jobs:
           tar -xf zig.tar.xz
           echo "$PWD/$z" >> "$GITHUB_PATH"
       - name: Build
-        run: python3 build.py --out build --with-auto
+        run: python3 build.py --out build
       - name: Compare with the recorded reference build
         run: python3 tools/check_reference_build.py
       - uses: >-

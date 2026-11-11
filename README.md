@@ -123,7 +123,8 @@ Because the selectors are volatile, this runs again on every cold boot.
 
 ## Build modes
 
-`build.py` always produces four images; `--with-auto` adds a fifth.
+`build.py` produces all five images by default. `--safe-only` leaves out
+`UNLOCKA2820`, the only image that unlocks without a key press.
 
 | Image | Admitted target | GPU writes | Display release | Key press |
 |---|---|---:|---:|---|
@@ -136,8 +137,9 @@ Because the selectors are volatile, this runs again on every cold boot.
 The exact profile means PCI ID, subsystem, BDF and FWSEC geometry must all match
 [`target_2820.h`](target_2820.h). Any mismatch is refused before the first write.
 
-`UNLOCKA2820` is opt-in. During its countdown, `Esc` opens a two-entry menu and
-`S` starts stock Windows.
+`UNLOCKA2820` is the plug-and-unlock image: it is what the default USB layout
+puts at the root. During its countdown, `Esc` opens a two-entry menu and `S`
+starts stock Windows.
 
 ---
 
@@ -173,8 +175,8 @@ files plus the NVIDIA licence into `assets/`.
 
 ```powershell
 python build.py --zig C:\path\to\zig.exe --out build
-# optional automatic image
-python build.py --zig C:\path\to\zig.exe --out build --with-auto
+# four images only, no automatic unlock
+python build.py --zig C:\path\to\zig.exe --out build --safe-only
 ```
 
 Output goes to `build/` with `build/build-result.json`. Images are PE-checked
@@ -235,12 +237,24 @@ Neither input is published, so that suite stays local. CI runs the other three.
 > run anything destructive. Never select a system disk.
 
 ```powershell
+# plug-and-unlock layout (default): the root image unlocks automatically
 python scripts/make_stick.py --build build --assets assets --out stick
-# one stage only
-python scripts/make_stick.py --build build --assets assets --out stick --variant dryrun
+
+# one directory per stage, for first-time verification on a new machine
+python scripts/make_stick.py --build build --assets assets --out stick --layout staged
 ```
 
-Each stage directory contains:
+The default layout is a single stick:
+
+```text
+EFI/BOOT/BOOTX64.EFI     <- UNLOCKA2820, automatic
+GPU4090-ASSETS/...
+RECOVERY/                <- the other four images
+README-AUTO.txt
+SHA256SUMS
+```
+
+The staged layout produces one directory per stage, each containing:
 
 ```text
 EFI/BOOT/BOOTX64.EFI
@@ -248,8 +262,8 @@ GPU4090-ASSETS/...
 SHA256SUMS
 ```
 
-Copy the **contents** of one stage directory to the root of a FAT32 USB drive.
-Only one `EFI/BOOT/BOOTX64.EFI` can exist at a time.
+Copy the **contents** of one directory to the root of a FAT32 USB drive. Only one
+`EFI/BOOT/BOOTX64.EFI` can exist at a time.
 
 `GPU4090-ASSETS` and `GPU4090-UNLOCK` are legacy upstream path names. They are
 kept because renaming them would change the bytes of the images that were
@@ -372,22 +386,50 @@ update. Reboot with the USB to unlock again.
 
 ---
 
-## About automation
+## Plug and unlock
 
-The default build has no automatic real-unlock image and no installer that edits
-the internal ESP or the firmware boot order. Automation does not make the unlock
-permanent; it only repeats the UEFI transaction on every boot.
+The default USB layout is built for one behaviour:
 
-If you still want "plug in the USB, power on, unlocked":
+| State | What happens |
+|---|---|
+| stick plugged in, cold boot | firmware starts the stick, the image unlocks, Windows starts |
+| stick removed, cold boot | firmware falls back to Windows Boot Manager, GPU stays stock |
+
+For the firmware to try the stick first, either put it ahead of Windows Boot
+Manager in the firmware setup, or register a boot entry once:
 
 ```powershell
-python build.py --zig C:\path\to\zig.exe --out build --with-auto
-python scripts/make_stick.py --build build --assets assets --out stick --variant auto
+# dry run: shows what would change
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\usb_boot_entry.ps1
+
+# create the entry and put it first
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\usb_boot_entry.ps1 -Apply
+
+# undo
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\usb_boot_entry.ps1 -Remove -Apply
 ```
 
-Then put that USB ahead of Windows Boot Manager in the firmware. Removing the
-USB should fall back to Windows. The automatic image still admits only the exact
-target profile.
+The script refuses to act unless the volume is a removable FAT32 volume with the
+expected label, the root image is the released automatic image (SHA-256 checked),
+Secure Boot is off, and no entry is already recorded. It records the entry id in
+`%ProgramData%\Rtx4070Unlock\usb-entry.json` so `-Remove` can undo it exactly.
+
+Things that break the fallback, check them before relying on it:
+
+- **Fast Startup must be off.** With it on, a Windows "shut down" can skip the
+  firmware boot path entirely, so the stick never runs. `powercfg /h off`.
+- **The USB port matters on some laptops.** A device path recorded for one port
+  may not match another; if the entry stops working, re-run `-Apply`.
+- **Verify the fallback yourself.** Shut down, remove the stick, power on, and
+  confirm Windows starts. If your firmware stops with "no boot device" instead
+  of falling back, delete the entry and select the stick from the boot menu
+  (F7) each time instead.
+- **Sleep and resume, driver restarts and driver updates** return the GPU to
+  stock. Only a cold boot through the stick restores the unlock.
+
+Automation does not make the unlock permanent: the selectors are volatile and a
+full power-off clears them. The stick simply repeats the transaction on every
+cold boot.
 
 ---
 
@@ -395,10 +437,11 @@ target profile.
 
 ```text
 target_2820.h                  exact write target
-build.py                       reproducible build (--with-auto adds the auto image)
+build.py                       reproducible build (--safe-only drops the auto image)
 tools/check_reference_build.py verifies the build against recorded hashes
 scripts/make_assets.py         generates firmware assets from pinned NVIDIA inputs
-scripts/make_stick.py          builds staged USB directories
+scripts/make_stick.py          builds the plug-and-unlock or staged USB layout
+scripts/usb_boot_entry.ps1     adds/removes the firmware boot entry for the stick
 firmware/                      download, verify and generation scripts
 vendor/                        retained transaction core and EDK2 headers
 compat/                        UEFI compatibility layer

@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.2.0 — plug and unlock
+
+- `UNLOCKA2820` is now part of the default build; `--safe-only` drops it.
+- `scripts/make_stick.py` defaults to a single plug-and-unlock layout: the root
+  image is the automatic one, the other four images sit in `RECOVERY/`.
+  `--layout staged` keeps the previous per-stage directories.
+- Added `scripts/usb_boot_entry.ps1`, which registers the stick ahead of Windows
+  Boot Manager so a plugged-in stick unlocks and a removed stick falls back to
+  Windows. Dry run by default, `-Apply` to act, `-Remove -Apply` to undo, with
+  an install record under `%ProgramData%\Rtx4070Unlock`.
+- Documented the fallback caveats: Fast Startup must be off, some laptops bind a
+  device path to one USB port, and the fallback has to be verified by hand.
+- No firmware image changed; every recorded hash still reproduces.
+
 ## 0.1.0 — verified AD106M Windows UEFI canary
 
 - Ported the guarded Windows UEFI flow to RTX 4070 Laptop GPU `10de:2820`.
