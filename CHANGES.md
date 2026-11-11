@@ -15,6 +15,11 @@
   `UNLOCKM2820`.
 - Removed the automatic real-unlock build and internal-ESP installation package
   from this source-only distribution.
+- Added `UNLOCKA2820.EFI`, built only with `--with-auto`: the same transaction,
+  started automatically after the countdown, still cancellable with Esc/S.
+- Made the published tree reproduce the hardware-verified images byte-for-byte:
+  `docs/reference-build-result.json` records them and
+  `tools/check_reference_build.py` (also run by CI) enforces the match.
 - Added exact FWSEC profile constants and a survey-specific bounds-only parser
   gate.
 - Added survey admission tests while retaining transaction, app-flow and display
