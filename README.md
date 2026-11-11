@@ -114,6 +114,12 @@ images refuse before the first write unless every pinned value matches.
 - BitLocker suspended if it is on: `Suspend-BitLocker -MountPoint C: -RebootCount 3`
 - Python 3, Zig **0.14.1**, and `zstd` on `PATH` to build
 
+Secure Boot is not optional. The images are unsigned, so the firmware will not
+load them while it is on; and if one does get loaded, the application reads the
+`SecureBoot` variable, refuses, and starts stock Windows with
+`SKIP: stage=secure-boot` in the log. Turning Secure Boot back on later does not
+undo an unlock, it only stops the stick from running.
+
 ## Build
 
 ### Reproduce the recorded images

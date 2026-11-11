@@ -105,6 +105,10 @@ Master、PCI 配置写入、显示释放和 FLR 路径；其余四个镜像在�
 - 启用 BitLocker 时先挂起：`Suspend-BitLocker -MountPoint C: -RebootCount 3`
 - 构建需要 Python 3、Zig **0.14.1**，以及 `PATH` 中的 `zstd`
 
+Secure Boot 不是可选项。镜像未签名，开启时固件不会加载；即使被加载，程序读到
+`SecureBoot=1` 也会拒绝，并在日志里写下 `SKIP: stage=secure-boot`，然后进入未
+解锁的 Windows。事后重新开启 Secure Boot 不会撤销已完成的解锁，只是 U 盘不再运行。
+
 ## 构建
 
 ### 复现已记录的镜像
