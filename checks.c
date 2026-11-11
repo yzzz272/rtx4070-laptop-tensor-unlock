@@ -29,15 +29,20 @@ BOOLEAN GuCheckConfig(const UINT32 Config[64], UINTN Segment, UINTN Bus,
   if (Out == NULL) return FALSE;
   *Out = Caps;
   if (Config == NULL) return FALSE;
+#if defined(GU_2820_SURVEY)
+  /* Read-only inventory: the one 10de:2820 may sit at any slot with any subsystem. */
   if (Config[0] != GU_BOARD_ID ||
-#if !defined(GU_2820_SURVEY)
-      Segment != GU_TARGET_SEGMENT || Bus != GU_TARGET_BUS ||
-      Device != GU_TARGET_DEVICE || Function != GU_TARGET_FUNCTION ||
-      Config[11] != GU_SUBSYSTEM_ID ||
-#endif
       ConfigByte(Config, 0x0b) != PCI_CLASS_DISPLAY ||
       (ConfigByte(Config, PCI_HEADER_TYPE_OFFSET) & 0x7fU) != HEADER_TYPE_DEVICE)
     return FALSE;
+#else
+  if (Segment != GU_TARGET_SEGMENT || Bus != GU_TARGET_BUS ||
+      Device != GU_TARGET_DEVICE || Function != GU_TARGET_FUNCTION ||
+      Config[0] != GU_BOARD_ID || Config[11] != GU_SUBSYSTEM_ID ||
+      ConfigByte(Config, 0x0b) != PCI_CLASS_DISPLAY ||
+      (ConfigByte(Config, PCI_HEADER_TYPE_OFFSET) & 0x7fU) != HEADER_TYPE_DEVICE)
+    return FALSE;
+#endif
   /* Bus master may be set by the board firmware; the release step clears it (as the Linux module does). */
   Command = ConfigWord(Config, PCI_COMMAND_OFFSET);
   if ((Command & EFI_PCI_COMMAND_MEMORY_SPACE) == 0 ||

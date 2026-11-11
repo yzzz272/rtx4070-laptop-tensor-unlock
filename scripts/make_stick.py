@@ -15,14 +15,17 @@ VARIANTS = {
     "dryrun": ("DRYRUN2820.EFI", "精确目标准入预检；不释放显示、不写 GPU"),
     "reltest": ("RELTEST2820.EFI", "释放并重连显示驱动；不写 GPU；启动后按 U"),
     "unlockm": ("UNLOCKM2820.EFI", "真实手动事务；仅在前两阶段通过后启动并按 U"),
+    "auto": ("UNLOCKA2820.EFI", "真实自动事务；倒计时结束即解锁，Esc/S 可跳过"),
 }
 
 
 def main():
-    parser = argparse.ArgumentParser(description="生成四个可复制到 FAT32 U 盘的分阶段目录")
-    parser.add_argument("--build", default="build", help="存放四个 EFI 的目录")
+    parser = argparse.ArgumentParser(description="生成可复制到 FAT32 U 盘的分阶段目录")
+    parser.add_argument("--build", default="build", help="存放 EFI 的目录")
     parser.add_argument("--assets", default="assets", help="五个固件资产所在目录")
     parser.add_argument("--out", default="stick", help="输出目录")
+    parser.add_argument("--variant", action="append", choices=sorted(VARIANTS),
+                        help="只生成指定阶段，可重复；默认生成全部可用阶段")
     args = parser.parse_args()
 
     repo = pathlib.Path(__file__).resolve().parent.parent
@@ -35,9 +38,16 @@ def main():
     assets = resolve(args.assets)
     out = resolve(args.out)
 
-    for image, _ in VARIANTS.values():
+    selected = {k: VARIANTS[k] for k in (args.variant or VARIANTS)}
+    # auto is opt-in at build time: skip it when it was not built, but a stage
+    # the caller named explicitly must exist.
+    if not args.variant:
+        selected = {k: v for k, v in selected.items() if (build / v[0]).is_file()}
+    for image, _ in selected.values():
         if not (build / image).is_file():
             parser.exit(1, f"缺少 {build / image}\n")
+    if not selected:
+        parser.exit(1, f"{build} 里没有可用的 EFI\n")
     for name in ASSETS:
         if not (assets / name).is_file():
             parser.exit(1, f"缺少 {assets / name}\n")
@@ -45,7 +55,7 @@ def main():
     if out.exists():
         shutil.rmtree(out)
 
-    for variant, (image, purpose) in VARIANTS.items():
+    for variant, (image, purpose) in selected.items():
         root = out / variant
         (root / "EFI" / "BOOT").mkdir(parents=True)
         (root / "GPU4090-ASSETS").mkdir(parents=True)

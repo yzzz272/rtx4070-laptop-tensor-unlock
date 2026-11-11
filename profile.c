@@ -47,9 +47,8 @@ BOOLEAN GuAd104FwsecSane(const struct gpu_unlock_fwsec *f) {
     f->sig_count && f->sig_bytes;
 #else
   return f && f->image_off==GU_FWSEC_IMAGE_OFF && f->image_size==GU_FWSEC_IMAGE_SIZE &&
-    f->imem_pa==GU_FWSEC_IMEM_PA && f->imem_size==GU_FWSEC_IMEM_SIZE &&
-    f->imem_va==GU_FWSEC_IMEM_VA && f->dmem_pa==GU_FWSEC_DMEM_PA &&
-    f->dmem_size==GU_FWSEC_DMEM_SIZE && f->pkc_off==GU_FWSEC_PKC_OFF &&
+    f->imem_pa==GU_FWSEC_IMEM_PA && f->imem_size==GU_FWSEC_IMEM_SIZE && f->imem_va==GU_FWSEC_IMEM_VA &&
+    f->dmem_pa==GU_FWSEC_DMEM_PA && f->dmem_size==GU_FWSEC_DMEM_SIZE && f->pkc_off==GU_FWSEC_PKC_OFF &&
     f->interface_off==GU_FWSEC_INTERFACE_OFF && f->ucode_id==GU_FWSEC_UCODE_ID &&
     f->engine_mask==GU_FWSEC_ENGINE_MASK && f->sig_count==GU_FWSEC_SIG_COUNT &&
     f->sig_versions==GU_FWSEC_SIG_VERSIONS && f->sig_bytes==GU_FWSEC_SIG_BYTES;

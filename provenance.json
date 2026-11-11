@@ -17,30 +17,42 @@
     "bdf": "0000:01:00.0",
     "vbios": "95.06.15.40.5F",
     "chip": "0x196000a1",
-    "driver": "617.42"
+    "driver": "617.42",
+    "display_children": 3
   },
-  "hardware_tested_manual_efi_sha256": "2929454ea73fe85bb67b1398f27cec18a6d98422562afac14d8dfe663209f2bb",
+  "hardware_verified_images": {
+    "UNLOCKM2820.EFI": {
+      "sha256": "2929454ea73fe85bb67b1398f27cec18a6d98422562afac14d8dfe663209f2bb",
+      "mode": "manual",
+      "log": "docs/logs/RUN0006-success.txt",
+      "log_sha256": "427992bb5bd1aa1fe5fc4eaa7c1d4790ab9fffeef8c0c467a1306a53f699a51c"
+    },
+    "UNLOCKA2820.EFI": {
+      "sha256": "58085a8d9f9dce0d36d01114fc5e87208639a1f2cfdd179658ba5d15e3154986",
+      "mode": "automatic",
+      "log": "docs/logs/RUN0001-auto-success.txt",
+      "log_sha256": "4d66e53f1db442d835ab9b394714d670f3d001dacb9146b725c6acf6c25e77b1"
+    }
+  },
+  "reproducibility": {
+    "command": "python build.py --out build --with-auto",
+    "zig": "0.14.1",
+    "reference": "docs/reference-build-result.json",
+    "checker": "tools/check_reference_build.py",
+    "result": "this tree rebuilds every recorded image byte-for-byte, including both hardware-verified images"
+  },
   "hardware_result": {
-    "transaction_log_sha256": "427992bb5bd1aa1fe5fc4eaa7c1d4790ab9fffeef8c0c467a1306a53f699a51c",
     "probe_output_sha256": "8f4e54186eda0801f125c5462aedaae0183265d6116fcac7bac27700c2bacfa9",
     "stock_rate_ratio": "2.030-2.126",
     "unlocked_rate_ratio": "0.989-1.054",
     "status": "selectors, FLR persistence, GOP reconnect, Windows driver initialization and matched CUDA throughput verified"
   },
-  "source_release_build": {
-    "zig": "0.14.1",
-    "survey2820_sha256": "bb4c3368402d52f049405e1170a1ceb25fc3d04aa706ee16ed3fa9b7adde4331",
-    "dryrun2820_sha256": "cbd05b2cc1372b60c591d4f322c4329266fb4c12802004cecbafa0826e4a8072",
-    "reltest2820_sha256": "f5d7c1dffbd362dad212ed70a3b49e12114eabab3f2169ed3884e5bf03cfb3fe",
-    "unlockm2820_sha256": "9577257553224682c4d467bd3c69783c6b89d5583b3a49eece2e172f0be8722e",
-    "note": "The cleaned source release is semantically equivalent for the exact target and passes simulated tests; users build locally and must still follow SURVEY/DRYRUN/RELTEST before UNLOCKM."
-  },
   "safety_properties": [
-    "no automatic real-unlock build",
     "no internal ESP or BootOrder installer",
     "survey has all write, DMA, Bus Master, PCI write, display release and FLR gates closed",
     "write-capable builds pin PCI ID, subsystem, BDF and FWSEC geometry",
-    "real transaction requires manual U confirmation"
+    "the manual image requires U confirmation",
+    "the automatic image is only built with --with-auto and still honours Esc/S"
   ],
   "private_inputs_published": false,
   "nvidia_firmware_redistributed": false

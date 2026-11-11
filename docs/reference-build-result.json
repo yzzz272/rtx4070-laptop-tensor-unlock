@@ -5,15 +5,19 @@
   },
   "DRYRUN2820.EFI": {
     "bytes": 79872,
-    "sha256": "cbd05b2cc1372b60c591d4f322c4329266fb4c12802004cecbafa0826e4a8072"
+    "sha256": "cf98446deb858daac991f3f9889d240032046ebba76a00eee4b05ceb37dd8439"
   },
   "RELTEST2820.EFI": {
     "bytes": 80896,
-    "sha256": "f5d7c1dffbd362dad212ed70a3b49e12114eabab3f2169ed3884e5bf03cfb3fe"
+    "sha256": "0d640e93a585c03eee932a06ff6577e88d39edcfdf156fec5d6d8aba801a47df"
   },
   "UNLOCKM2820.EFI": {
     "bytes": 86016,
-    "sha256": "9577257553224682c4d467bd3c69783c6b89d5583b3a49eece2e172f0be8722e"
+    "sha256": "2929454ea73fe85bb67b1398f27cec18a6d98422562afac14d8dfe663209f2bb"
+  },
+  "UNLOCKA2820.EFI": {
+    "bytes": 86016,
+    "sha256": "58085a8d9f9dce0d36d01114fc5e87208639a1f2cfdd179658ba5d15e3154986"
   },
   "zig": "0.14.1"
 }

@@ -1,0 +1,76 @@
+name: build
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  ZIG_VERSION: 0.14.1
+  ZIG_SHA256: >-
+    24aeeec8af16c381934a6cd7d95c807a8cb2cf7df9fa40d359aa884195c4716c
+
+jobs:
+  build:
+    name: build EFI images
+    runs-on: ubuntu-latest
+    steps:
+      - uses: >-
+          actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Install zig
+        run: |
+          set -euo pipefail
+          z="zig-x86_64-linux-${ZIG_VERSION}"
+          u="https://ziglang.org/download/${ZIG_VERSION}/${z}.tar.xz"
+          curl -fsSL "$u" -o zig.tar.xz
+          echo "${ZIG_SHA256}  zig.tar.xz" | sha256sum -c -
+          tar -xf zig.tar.xz
+          echo "$PWD/$z" >> "$GITHUB_PATH"
+      - name: Build
+        run: python3 build.py --out build --with-auto
+      - name: Compare with the recorded reference build
+        run: python3 tools/check_reference_build.py
+      - uses: >-
+          actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: efi-images
+          path: |
+            build/*.EFI
+            build/build-result.json
+
+  tests:
+    name: simulated tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: >-
+          actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Install zig
+        run: |
+          set -euo pipefail
+          z="zig-x86_64-linux-${ZIG_VERSION}"
+          u="https://ziglang.org/download/${ZIG_VERSION}/${z}.tar.xz"
+          curl -fsSL "$u" -o zig.tar.xz
+          echo "${ZIG_SHA256}  zig.tar.xz" | sha256sum -c -
+          tar -xf zig.tar.xz
+          echo "$PWD/$z" >> "$GITHUB_PATH"
+      - name: Python syntax
+        run: >-
+          python3 -m py_compile
+          build.py scripts/*.py firmware/*.py tools/*.py
+      - name: Survey admission
+        run: CC="zig cc" sh tests/run-survey-tests.sh
+      - name: Placeholder assets for the boot/app suite
+        run: sh tests/make_placeholder_assets.sh "$RUNNER_TEMP/assets"
+      - name: Boot and application flow
+        run: >-
+          CC="zig cc" sh tests/run-boot-app-tests.sh
+          "$RUNNER_TEMP/assets"
+      - name: Display release handoff
+        run: CC="zig cc" sh tests/run-release-tests.sh
+      # tests/run-host-tests.sh needs a 1 MiB PROM dump from the target card
+      # and the real NVIDIA firmware assets. Neither is published, so it
+      # stays a local test.

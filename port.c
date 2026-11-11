@@ -55,13 +55,15 @@ VOID GuInit(EFI_BOOT_SERVICES *Bs, EFI_PCI_IO_PROTOCOL *Pci) {
 /* Write-capable builds stay pinned to the exact profile. SURVEY is read-only and
    follows the one discovered 10de:2820 function regardless of subsystem/BDF. */
 BOOLEAN GuTargetConfig(const UINT32 *C, UINTN S, UINTN B, UINTN D, UINTN F) {
-  return C && C[0]==GU_BOARD_ID &&
-#if !defined(GU_2820_SURVEY)
-    C[11]==GU_SUBSYSTEM_ID &&
+#if defined(GU_2820_SURVEY)
+  return C && C[0]==GU_BOARD_ID && (C[2]>>24)==0x03U && !((C[3]>>16)&0x7f) &&
+    (!Gu.located || (S==Gu.seg && B==Gu.bus && D==Gu.dev && F==Gu.fun));
+#else
+  return C && C[0]==GU_BOARD_ID && C[11]==GU_SUBSYSTEM_ID &&
     S==GU_TARGET_SEGMENT && B==GU_TARGET_BUS && D==GU_TARGET_DEVICE && F==GU_TARGET_FUNCTION &&
-#endif
     (C[2]>>24)==0x03U && !((C[3]>>16)&0x7f) &&
     (!Gu.located || (S==Gu.seg && B==Gu.bus && D==Gu.dev && F==Gu.fun));
+#endif
 }
 BOOLEAN GuSafeToReturn(VOID) {
   return !Gu.retained && !Gu.allocations && !Gu.dma_count && !Gu.master_attributes_pending &&

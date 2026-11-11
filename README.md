@@ -9,7 +9,7 @@
 - 不修改 Windows 系统文件
 - 解锁状态是易失的，完全断电后恢复原状
 - 本仓库只提供源码，不附带预编译 EFI 或 NVIDIA 固件资产
-- **不构建自动真实解锁镜像**；真实事务必须在启动时手动按 `U`
+- 真实解锁需要手动构建，默认产物中只有手动确认版；自动版需 `--with-auto`
 
 > 这不是功耗墙、显存容量或游戏性能解锁。主要受益的是使用
 > FP16/BF16/TF32 输入并进行 FP32 累加的矩阵运算。
@@ -63,9 +63,9 @@ TRANSACTION OK
 这证明目标 Tensor 路径实测接近翻倍，但不代表所有 AI 应用整体都能提升两倍；
 实际收益还取决于算子选择、显存带宽、功耗、温度和 CPU 开销。
 
-## 四个构建模式
+## 五个构建模式
 
-`build.py` 只生成以下四个镜像：
+`build.py` 默认生成四个安全镜像，`--with-auto` 额外生成一个自动镜像：
 
 | 镜像 | 适用范围 | GPU 写入 | 显示驱动释放 | 启动操作 |
 |---|---|---:|---:|---|
@@ -73,9 +73,13 @@ TRANSACTION OK
 | `DRYRUN2820.EFI` | `target_2820.h` 精确目标 | 否 | 否 | 无需按键 |
 | `RELTEST2820.EFI` | 精确目标 | 否 | 是 | 按 `U` |
 | `UNLOCKM2820.EFI` | 精确目标 | **是** | 是 | **按 `U`** |
+| `UNLOCKA2820.EFI` | 精确目标 | **是** | 是 | 无（3 秒后自动） |
 
 `SURVEY`、`DRYRUN` 和 `RELTEST` 的 GPU MMIO 写入、DMA、PCI 配置写入、Bus
 Master 和 FLR 门均关闭。`RELTEST` 只验证固件显示驱动能否安全释放并恢复。
+
+`UNLOCKA2820` 只在显式传入 `--with-auto` 时构建。它在倒计时结束后自动执行
+真实事务，倒计时内仍可用 `Esc` 打开菜单、`S` 进入未解锁的 Windows。
 
 ## 构建环境
 
@@ -120,6 +124,27 @@ python build.py --zig C:\path\to\zig.exe --out build
 
 输出写入 `build/`，并生成 `build/build-result.json`。构建过程会检查 PE/COFF
 格式；`/Brepro` 使相同源码与 Zig 版本产生字节一致的镜像。
+
+### 可复现性
+
+本仓库的源码能逐字节重建硬件已验证过的镜像。构建后运行：
+
+```powershell
+python tools/check_reference_build.py
+```
+
+它会把 `build/build-result.json` 与 `docs/reference-build-result.json` 对比。
+当前记录的五个镜像（含两个在实机上验证过的真实事务镜像）全部匹配：
+
+| 镜像 | SHA-256（前 16 位） |
+|---|---|
+| `SURVEY2820.EFI` | `bb4c3368402d52f0` |
+| `DRYRUN2820.EFI` | `cf98446deb858daa` |
+| `RELTEST2820.EFI` | `0d640e93a585c03e` |
+| `UNLOCKM2820.EFI` | `2929454ea73fe85b` |
+| `UNLOCKA2820.EFI` | `58085a8d9f9dce0d` |
+
+CI 会执行同样的对比，所以任何改变输出的改动都会被显式指出。
 
 ## 3. 运行离线测试
 
@@ -317,17 +342,28 @@ nvidia-smi
 
 ## 关于自动启动
 
-本项目故意不构建自动真实解锁镜像，也不提供修改内置 ESP/BootOrder 的安装脚本。
+默认构建不生成自动真实解锁镜像，也不提供修改内置 ESP/BootOrder 的安装脚本。
 完成多次冷启动和实际工作负载稳定性验证前，不建议自动化。自动化不会让解锁永久化，
 它只是每次开机自动重复 UEFI 事务。
+
+如果确实需要“插上 U 盘、开机就解锁”，可以显式构建自动镜像：
+
+```powershell
+python build.py --zig C:\path\to\zig.exe --out build --with-auto
+python scripts/make_stick.py --build build --assets assets --out stick --variant auto
+```
+
+然后在固件里把该 U 盘排在 Windows Boot Manager 之前。拔掉 U 盘后应回退到
+Windows。自动镜像仍然只接受 `target_2820.h` 的精确目标。
 
 ## 项目结构
 
 ```text
 target_2820.h          精确写入目标配置
-build.py               可复现 EFI 构建
+build.py               可复现 EFI 构建（--with-auto 增加自动镜像）
+tools/check_reference_build.py  校验构建是否与记录的哈希一致
 scripts/make_assets.py 从固定 NVIDIA 输入生成资产
-scripts/make_stick.py  生成四阶段 U 盘目录
+scripts/make_stick.py  生成分阶段 U 盘目录
 firmware/              固件下载、校验与生成器
 vendor/                上游保留的事务核心和 EDK2 头文件
 compat/                UEFI 兼容层
