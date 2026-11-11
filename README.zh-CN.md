@@ -81,6 +81,14 @@ python build.py --zig C:\path\to\zig.exe --out build
 
 ## 使用
 
+你需要：
+
+- 一个可以清空的 U 盘 —— FAT32，128 MB 就够
+- Secure Boot **关闭** —— 镜像未签名
+- 快速启动 **关闭** —— 否则 Windows 的「关机」会跳过固件启动
+- BitLocker 已挂起（如果启用了）
+- 数据已备份
+
 ```powershell
 python scripts/make_stick.py --build build --assets assets --out stick
 # 把 stick\ 内容复制到 FAT32 U 盘根目录，然后：
@@ -92,9 +100,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\usb_boot_entry.ps1 -
 | 插着 U 盘冷启动 | 固件启动 U 盘，解锁，进入 Windows |
 | 拔掉 U 盘冷启动 | 固件回退到 Windows Boot Manager，GPU 保持原始 |
 
-首次启动前：备份数据、关闭 Secure Boot、关闭快速启动（`powercfg /h off`）、
-启用 BitLocker 的话先挂起。完全关机，等电源灯熄灭，长按电源键 10 秒，再开机。
-验证机上的启动菜单是 F7。
+首次启动：完全关机，等电源灯熄灭，长按电源键 10 秒，再开机并打开启动菜单
+（验证机上是 F7）。
 
 3 秒倒计时内：`Esc` 打开菜单，`S` 进入未解锁的 Windows，`U` 立即解锁。
 用 `-Remove -Apply` 撤销启动项。

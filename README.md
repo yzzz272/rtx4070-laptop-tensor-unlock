@@ -83,6 +83,14 @@ ran on hardware; CI enforces the same check.
 
 ## Use
 
+You need:
+
+- a USB drive you can erase — FAT32, 128 MB is enough
+- Secure Boot **off** — the images are unsigned
+- Fast Startup **off** — otherwise a Windows "shut down" skips the firmware
+- BitLocker suspended, if it is on
+- your data backed up
+
 ```powershell
 python scripts/make_stick.py --build build --assets assets --out stick
 # copy stick\ contents to the root of a FAT32 USB drive, then:
@@ -94,10 +102,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\usb_boot_entry.ps1 -
 | Stick plugged in, cold boot | firmware starts the stick, unlocks, Windows starts |
 | Stick removed, cold boot | firmware falls back to Windows Boot Manager, GPU stays stock |
 
-Before the first boot: back up your data, turn Secure Boot off, turn Fast Startup
-off (`powercfg /h off`), and suspend BitLocker if it is on. Shut down fully, wait
-for the power light to go out, hold the power button for 10 seconds, then boot.
-The boot menu is F7 on the verified machine.
+First boot: shut down fully, wait for the power light to go out, hold the power
+button for 10 seconds, then power on and open the boot menu (F7 on the verified
+machine).
 
 During the 3-second countdown: `Esc` opens a menu, `S` starts stock Windows, `U`
 unlocks immediately. Undo the boot entry with `-Remove -Apply`.
