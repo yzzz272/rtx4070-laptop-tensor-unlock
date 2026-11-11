@@ -1,142 +1,198 @@
-# RTX 4070 Laptop 张量速率解锁（Windows UEFI，源码版）
+# RTX 4070 Laptop tensor-rate unlock (Windows UEFI)
 
-这是一个面向 **RTX 4070 Laptop GPU (`10de:2820`)** 的实验性 Windows UEFI
-预启动项目。它在 Windows 和 NVIDIA 驱动加载前，解除 FP16/BF16 Tensor Core
-执行 FP32 累加时的半速限制。
+**English** | [简体中文](README.zh-CN.md)
 
-- 不刷 VBIOS
-- 不替换或修改 NVIDIA Windows 驱动
-- 不修改 Windows 系统文件
-- 解锁状态是易失的，完全断电后恢复原状
-- 本仓库只提供源码，不附带预编译 EFI 或 NVIDIA 固件资产
-- 真实解锁需要手动构建，默认产物中只有手动确认版；自动版需 `--with-auto`
+> ## ⚠️ AI-generated project — verify before you use it
+>
+> This repository — the code, the build scripts, the tests and this document —
+> was produced with substantial AI assistance. It has been built and tested on
+> the one machine described below, but it has **not** been reviewed by a
+> security professional, and AI-generated systems code can be wrong in ways
+> that are hard to see.
+>
+> Read the source before running any image. Do not run it on a machine you
+> cannot afford to lose. Do not trust the benchmark numbers here as a promise
+> about your own hardware. If you cannot read C and UEFI code well enough to
+> judge it, ask someone who can.
 
-> 这不是功耗墙、显存容量或游戏性能解锁。主要受益的是使用
-> FP16/BF16/TF32 输入并进行 FP32 累加的矩阵运算。
+A pre-boot UEFI application that removes the half-rate restriction on FP16/BF16
+Tensor Core operations that accumulate into FP32, on consumer Ada laptop GPUs.
 
-## 已验证硬件
+- Does **not** flash the VBIOS
+- Does **not** replace or patch the NVIDIA Windows driver
+- Does **not** modify Windows system files
+- Does **not** install a boot entry or touch the internal ESP
+- The unlock is **volatile**: a full power-off returns the GPU to stock
 
-真实解锁仅在以下机器上完成过匹配验证：
+This is not a power-limit, VRAM or gaming unlock. It only helps workloads that
+feed FP16/BF16/TF32 data into tensor cores and accumulate in FP32.
 
-| 项目 | 值 |
+---
+
+## Verification scope — read this first
+
+Exactly **one** machine has been verified end to end:
+
+| Item | Value |
 |---|---|
-| 笔记本 | MECHREVO JiguangPro Series GM5AR7O |
-| GPU | RTX 4070 Laptop GPU，AD106M，36 SM |
+| Laptop | MECHREVO JiguangPro Series **GM5AR7O** |
+| GPU | RTX 4070 Laptop GPU, AD106M, 36 SM |
 | PCI ID | `10de:2820` |
-| 子系统 | `1d05:1297` |
+| Subsystem | `1d05:1297` |
 | BDF | `0000:01:00.0` |
 | VBIOS | `95.06.15.40.5F` |
-| Windows 驱动 | 617.42 |
-| 芯片读数 | `PMC_BOOT_0=0x196000a1` |
+| Chip readout | `PMC_BOOT_0=0x196000a1` |
+| NVIDIA driver | 617.42 |
+| Windows | 10 Pro N for Workstations 19045 |
 
-精确写入准入配置在 [`target_2820.h`](target_2820.h)。除调查模式外，程序会同时
-核对 PCI ID、子系统、BDF 和 FWSEC 几何；任一不匹配都会在写入前拒绝。
+**Every other RTX 4070 Laptop is unverified.** Different brands, subsystems,
+BDFs, VBIOS revisions and EC/firmware behaviour all change the outcome. A
+result on this machine says nothing about yours.
 
-其他品牌、子系统、BDF 或 VBIOS 的 RTX 4070 Laptop **不能直接视为兼容**。
-请先运行只读 `SURVEY2820.EFI`，不要直接修改常量后尝试真实事务。
+If your laptop is not the table above, the only supported first step is the
+read-only `SURVEY2820` image:
 
-## 实测结果
+1. Build `SURVEY2820.EFI` and boot it from a USB drive.
+2. It records your subsystem, BDF, chip readout, VRAM and FWSEC geometry, then
+   starts Windows normally.
+3. It cannot write the GPU: every write, DMA, Bus Master, PCI config write,
+   display-release and FLR gate is compiled out.
+4. Open an issue with the report from
+   [`docs/compatibility-report-template.md`](docs/compatibility-report-template.md).
 
-相同机器、相同 CUDA 探针、相同二进制的匹配结果：
+A new machine gets its own exact target profile only after that log has been
+reviewed. Editing the constants yourself and skipping this step is how people
+brick laptops.
 
-| 状态 | FP16 输入 / FP16 累加 | FP16 输入 / FP32 累加 | 两者比值 |
+---
+
+## Measured result on the verified machine
+
+Same machine, same CUDA probe binary, same shapes:
+
+| State | FP16 in / FP16 acc | FP16 in / FP32 acc | Ratio |
 |---|---:|---:|---:|
-| Stock | 约 152–158 TF/s | 约 74–77 TF/s | `2.030–2.126` |
-| Unlocked | 约 152–159 TF/s | 约 144–160 TF/s | `0.989–1.054` |
+| Stock | ~152–158 TF/s | ~74–77 TF/s | `2.030–2.126` |
+| Unlocked | ~152–159 TF/s | ~144–160 TF/s | `0.989–1.054` |
 
-硬件侧同时确认：
+The FP16-accumulate control group barely moves; the FP32-accumulate path
+roughly doubles. Hardware readbacks agree:
 
 ```text
-before:     READOUT_1=0x410080, full=0
-selectors:  SS0=0x88888888, SS1=0x8
-post-FLR:   READOUT_1=0, full=1
-POST-GOP:   SS0=0x88888888, SS1=0x8
+before:     READOUT_1=0x410080  full=0
+selectors:  SS0=0x88888888  SS1=0x8
+post-FLR:   READOUT_1=0  full=1
+POST-GOP:   SS0=0x88888888  SS1=0x8
 TRANSACTION OK
 ```
 
-完整报告和脱敏后的成功日志位于：
+Evidence in the repository:
 
 - [`docs/verified-gm5ar7o.md`](docs/verified-gm5ar7o.md)
-- [`docs/logs/RUN0006-success.txt`](docs/logs/RUN0006-success.txt)
+- [`docs/logs/RUN0006-success.txt`](docs/logs/RUN0006-success.txt) — manual image
+- [`docs/logs/RUN0001-auto-success.txt`](docs/logs/RUN0001-auto-success.txt) — automatic image
 - [`docs/logs/unlocked-tensor-probe.txt`](docs/logs/unlocked-tensor-probe.txt)
 
-这证明目标 Tensor 路径实测接近翻倍，但不代表所有 AI 应用整体都能提升两倍；
-实际收益还取决于算子选择、显存带宽、功耗、温度和 CPU 开销。
+These numbers are one laptop with one thermal design. Expect throttling, not a
+free 2× in every application.
 
-## 五个构建模式
+---
 
-`build.py` 默认生成四个安全镜像，`--with-auto` 额外生成一个自动镜像：
+## How it works, briefly
 
-| 镜像 | 适用范围 | GPU 写入 | 显示驱动释放 | 启动操作 |
+Consumer Ada parts run the FP32-accumulate tensor path at half the FP16-accumulate
+rate. The restriction is set by two volatile speed selectors (`SS0`, `SS1`) and
+four PLM permission registers, and only NVIDIA's own signed firmware chain can
+open them.
+
+Before Windows starts, the application:
+
+1. Reads the card's own VBIOS from `BAR0+0x300000` and parses the FWSEC
+   descriptor.
+2. Loads the signed GSP Falcon firmware to establish WPR2.
+3. Runs the pinned AD102-family Booter and four-PLM payload on SEC2, opening
+   `WPR_CFG`, `WPR` and `FEAT_OVR_PLM`.
+4. Writes `SS0=0x88888888` and `SS1=0x8`, then reads them back.
+5. Performs one PCIe Function Level Reset and verifies the selectors survived.
+6. Reconnects the firmware display driver and hands control to the existing
+   Windows Boot Manager.
+
+Because the selectors are volatile, this runs again on every cold boot.
+
+---
+
+## Build modes
+
+`build.py` always produces four images; `--with-auto` adds a fifth.
+
+| Image | Admitted target | GPU writes | Display release | Key press |
 |---|---|---:|---:|---|
-| `SURVEY2820.EFI` | 任意单张 `10de:2820` | 否 | 否 | 无需按键 |
-| `DRYRUN2820.EFI` | `target_2820.h` 精确目标 | 否 | 否 | 无需按键 |
-| `RELTEST2820.EFI` | 精确目标 | 否 | 是 | 按 `U` |
-| `UNLOCKM2820.EFI` | 精确目标 | **是** | 是 | **按 `U`** |
-| `UNLOCKA2820.EFI` | 精确目标 | **是** | 是 | 无（3 秒后自动） |
+| `SURVEY2820.EFI` | any single `10de:2820` | no | no | none |
+| `DRYRUN2820.EFI` | exact profile | no | no | none |
+| `RELTEST2820.EFI` | exact profile | no | yes | `U` |
+| `UNLOCKM2820.EFI` | exact profile | **yes** | yes | **`U`** |
+| `UNLOCKA2820.EFI` | exact profile | **yes** | yes | none (3 s) |
 
-`SURVEY`、`DRYRUN` 和 `RELTEST` 的 GPU MMIO 写入、DMA、PCI 配置写入、Bus
-Master 和 FLR 门均关闭。`RELTEST` 只验证固件显示驱动能否安全释放并恢复。
+The exact profile means PCI ID, subsystem, BDF and FWSEC geometry must all match
+[`target_2820.h`](target_2820.h). Any mismatch is refused before the first write.
 
-`UNLOCKA2820` 只在显式传入 `--with-auto` 时构建。它在倒计时结束后自动执行
-真实事务，倒计时内仍可用 `Esc` 打开菜单、`S` 进入未解锁的 Windows。
+`UNLOCKA2820` is opt-in. During its countdown, `Esc` opens a two-entry menu and
+`S` starts stock Windows.
 
-## 构建环境
+---
 
-需要：
+## Requirements
 
 - Python 3
 - Zig **0.14.1**
-- `zstd` 在 `PATH` 中
-- 可联网下载经过 SHA-256 固定的 NVIDIA 官方输入
-
-Windows 可安装 `zstd`：
+- `zstd` on `PATH` (only to generate firmware assets)
+- Network access for the pinned NVIDIA inputs
 
 ```powershell
 winget install Facebook.Zstandard
 ```
 
-下载 Zig 0.14.1 后，不必全局安装，可以直接传入 `zig.exe` 路径。
+Zig does not need to be installed system-wide; pass the executable path.
 
-## 1. 生成 NVIDIA 固件资产
+---
 
-本仓库不分发固件二进制。运行：
+## Build
+
+### 1. Generate the firmware assets
+
+NVIDIA's binaries are not redistributed here.
 
 ```powershell
 python scripts/make_assets.py --out assets
 ```
 
-脚本会下载固定版本的 NVIDIA 输入、校验 SHA-256，并生成五个文件：
+This downloads pinned inputs, verifies their SHA-256 values and writes five
+files plus the NVIDIA licence into `assets/`.
 
-```text
-assets/booter_load_ad102.bin
-assets/v67-ad102-610.43.03-four-plm.bin
-assets/gsp_ga10x.bin
-assets/gsp_boot_ad102.bin
-assets/gsp_boot_desc_ad102.bin
-```
-
-## 2. 构建 EFI
+### 2. Build the images
 
 ```powershell
 python build.py --zig C:\path\to\zig.exe --out build
+# optional automatic image
+python build.py --zig C:\path\to\zig.exe --out build --with-auto
 ```
 
-输出写入 `build/`，并生成 `build/build-result.json`。构建过程会检查 PE/COFF
-格式；`/Brepro` 使相同源码与 Zig 版本产生字节一致的镜像。
+Output goes to `build/` with `build/build-result.json`. Images are PE-checked
+and built with `/Brepro`, so the same source and Zig version produce identical
+bytes.
 
-### 可复现性
-
-本仓库的源码能逐字节重建硬件已验证过的镜像。构建后运行：
+### 3. Reproducibility check
 
 ```powershell
 python tools/check_reference_build.py
 ```
 
-它会把 `build/build-result.json` 与 `docs/reference-build-result.json` 对比。
-当前记录的五个镜像（含两个在实机上验证过的真实事务镜像）全部匹配：
+This compares your build with
+[`docs/reference-build-result.json`](docs/reference-build-result.json). The
+current tree reproduces all five recorded images byte-for-byte, including both
+images that were run on hardware:
 
-| 镜像 | SHA-256（前 16 位） |
+| Image | SHA-256 (first 16) |
 |---|---|
 | `SURVEY2820.EFI` | `bb4c3368402d52f0` |
 | `DRYRUN2820.EFI` | `cf98446deb858daa` |
@@ -144,43 +200,47 @@ python tools/check_reference_build.py
 | `UNLOCKM2820.EFI` | `2929454ea73fe85b` |
 | `UNLOCKA2820.EFI` | `58085a8d9f9dce0d` |
 
-CI 会执行同样的对比，所以任何改变输出的改动都会被显式指出。
+CI runs the same comparison, so any change that alters the output is called out.
 
-## 3. 运行离线测试
+---
 
-在 Git Bash、MSYS2 或 Linux 中执行。Windows 上可让 Zig 充当 C 编译器：
+## Tests
+
+All tests are simulated: PCI, MMIO, DMA, firmware execution and failure paths
+run against a fake engine. Nothing touches a real GPU.
 
 ```sh
 export CC='C:/path/to/zig.exe cc'
+
 sh tests/run-survey-tests.sh
-sh tests/run-boot-app-tests.sh assets
+sh tests/make_placeholder_assets.sh /tmp/assets
+sh tests/run-boot-app-tests.sh /tmp/assets
 sh tests/run-release-tests.sh
 ```
 
-完整固件事务模拟还需要目标卡的一份 1 MiB PROM 窗口：
+The full transaction simulation additionally needs a 1 MiB PROM window from the
+target card and the real firmware assets:
 
 ```sh
 sh tests/run-host-tests.sh /path/to/PROM-1MiB.bin assets
 ```
 
-这些测试不会访问真实 GPU；PCI、MMIO、DMA、固件执行和失败场景全部由模拟器完成。
+Neither input is published, so that suite stays local. CI runs the other three.
 
-## 4. 生成 U 盘目录
+---
+
+## Preparing the USB drive
+
+> This erases the USB drive. Confirm the disk number, model and size before you
+> run anything destructive. Never select a system disk.
 
 ```powershell
 python scripts/make_stick.py --build build --assets assets --out stick
+# one stage only
+python scripts/make_stick.py --build build --assets assets --out stick --variant dryrun
 ```
 
-会生成：
-
-```text
-stick/survey/
-stick/dryrun/
-stick/reltest/
-stick/unlockm/
-```
-
-每个目录都包含：
+Each stage directory contains:
 
 ```text
 EFI/BOOT/BOOTX64.EFI
@@ -188,84 +248,60 @@ GPU4090-ASSETS/...
 SHA256SUMS
 ```
 
-`GPU4090-ASSETS` 是上游兼容路径，名称保留不代表目标 GPU 是 RTX 4090。
+Copy the **contents** of one stage directory to the root of a FAT32 USB drive.
+Only one `EFI/BOOT/BOOTX64.EFI` can exist at a time.
 
-## 5. 准备 FAT32 U 盘
+`GPU4090-ASSETS` and `GPU4090-UNLOCK` are legacy upstream path names. They are
+kept because renaming them would change the bytes of the images that were
+verified on hardware.
 
-> 以下操作会清空 U 盘。务必按容量、型号和磁盘编号确认目标，绝不能误选系统盘。
+---
 
-建议用 Windows“磁盘管理”完成：
+## Staged procedure
 
-1. 删除测试 U 盘上的旧分区；
-2. 新建一个 FAT32 主分区；
-3. 一次只把某个阶段目录里的**内容**复制到 U 盘根目录；
-4. 确认存在 `\EFI\BOOT\BOOTX64.EFI`；
-5. 首次只能放 `survey` 或 `dryrun`，不要从 `unlockm` 开始。
+Do not skip stages. Each one exists to stop a failure before it reaches the GPU.
 
-切换阶段时，只需用下一阶段目录中的内容覆盖 U 盘根目录。不要同时放置多个
-`EFI/BOOT/BOOTX64.EFI`。
+### Before every boot
 
-## 6. 启动前准备
+1. Back up anything important.
+2. If BitLocker or device encryption is on, back up the recovery key and
+   suspend protection.
+3. Turn Secure Boot **off**; the images are unsigned.
+4. Turn Windows Fast Startup **off**.
+5. Connect the power adapter.
+6. Fully shut down Windows.
+7. Wait for the power light to go out, then hold the power button for about
+   10 seconds.
+8. Power on, open the firmware boot menu (F7 on the verified machine), and pick
+   the entry with `UEFI` in its name.
 
-1. 保存重要数据；
-2. 若启用 BitLocker/设备加密，先备份恢复密钥并暂停保护；
-3. 临时关闭 Secure Boot，镜像未签名；
-4. 接通笔记本电源；
-5. Windows 完全关机；
-6. 等电源灯熄灭后长按电源键约 10 秒；
-7. 开机进入启动菜单，选择带 `UEFI` 的 USB 条目。
+Do not use Windows "Restart" instead of a cold boot. A GPU that the driver has
+already initialised is rejected by the cold-entry check.
 
-不要使用 Windows“重启”代替冷启动。驱动初始化后的 GPU 状态会被冷入口检查拒绝。
+Some laptops never draw the text console. If a stage needs a key press, select
+the USB entry and press the key repeatedly for a few seconds right after Enter.
 
-部分笔记本不会显示 UEFI 文字控制台。如果需要按 `U`，可在启动菜单选择 USB 并
-按 Enter 后，立即连续按 `U` 约 5 秒。
+### Stage A — `SURVEY2820` (any 4070 Laptop)
 
-## 7. 推荐分阶段流程
+No key press. It records hardware facts and starts Windows. Send the resulting
+`\GPU4090-UNLOCK\RUNnnnn.TXT` back for review.
 
-### 阶段 A：其他 RTX 4070 Laptop 先运行 SURVEY
+### Stage B — `DRYRUN2820` (exact profile only)
 
-适用于品牌、子系统或 VBIOS 不确定的机器。
-
-1. 将 `stick/survey/` 内容复制到 U 盘根目录；
-2. 冷启动并选择 UEFI USB；
-3. 无需按键，程序只读检查后进入正常 Windows；
-4. 读取 U 盘中的 `\GPU4090-UNLOCK\RUNnnnn.TXT`；
-5. 保存以下行：
-   - `GPU at ... subsystem=...`
-   - `PMC_BOOT_0`
-   - `VRAM_MIB`
-   - `FWSEC geometry`
-   - `release preflight`
-
-SURVEY 不会因为子系统、BDF 或 FWSEC 几何不同而执行写入；它根本没有写入能力。
-调查日志应由了解代码和硬件的人审阅，再决定是否新增独立的精确目标配置。提交信息时可使用
-[`docs/compatibility-report-template.md`](docs/compatibility-report-template.md)。
-
-### 阶段 B：DRYRUN
-
-仅当机器匹配 `target_2820.h`，或已有经过审阅的新精确配置时运行。
-
-成功日志应包含：
+No key press, no display release, no GPU write. A good log contains:
 
 ```text
 PCI scan: 10de:2820 functions found=1
 PCIe device capability=... FLR_capable=1
-FWSEC from this card's VBIOS: ...
+FWSEC from this card's VBIOS: image_off=... image_size=...
 release preflight: status=0
 Checks passed.
 ```
 
-DRYRUN 不释放显示驱动，不写 GPU。
+### Stage C — `RELTEST2820`
 
-### 阶段 C：RELTEST
-
-1. 覆盖为 `stick/reltest/`；
-2. 冷启动并选择 USB；
-3. 在倒计时中按 `U`，看不到文字时可立即连续按 `U`；
-4. 屏幕可能短暂冻结或黑屏；
-5. 成功后应正常进入 Windows。
-
-日志应包含：
+Press `U` during the countdown. The screen may freeze or go blank. A good log
+contains:
 
 ```text
 choice: unlock
@@ -273,19 +309,11 @@ driver release: status=0 refresh=0 same_pci=1
 release test: status=0 gop=1
 ```
 
-RELTEST 仍然不能写 GPU。
+Still no GPU write.
 
-### 阶段 D：UNLOCKM 真实事务
+### Stage D — `UNLOCKM2820` (real transaction)
 
-只有 DRYRUN 和 RELTEST 的日志均通过后才可进行。
-
-1. 覆盖为 `stick/unlockm/`；
-2. 冷启动并选择 USB；
-3. 主动按 `U`；不按则进入未解锁的正常 Windows；
-4. 等待显示恢复并进入 Windows；
-5. **进入后不要立即重启**，先保存日志并运行匹配性能测试。
-
-成功日志必须包含：
+Only after B and C pass. Press `U`. A good log contains:
 
 ```text
 selector result: SS0=0x88888888 ... matched=1
@@ -297,95 +325,113 @@ POST-GOP SS0=0x88888888 SS1=0x8
 TRANSACTION OK
 ```
 
-## 8. 成功后的性能判据
+Then stay in Windows and measure before rebooting.
 
-不要只看绝对 TFLOPS，因为功耗和频率会变化。至少比较同一探针的：
+---
 
-```text
-FP16 输入 / FP16 累加吞吐
-FP16 输入 / FP32 累加吞吐
-两者比值
-```
+## Checking the result
 
-典型判据：
+Do not judge by absolute TFLOPS alone; clocks and power limits move. Compare
+the ratio of FP16-accumulate to FP32-accumulate throughput from the same binary:
 
-- Stock：比值约 `2.0`
-- Unlocked：比值约 `1.0`
+- stock: about `2.0`
+- unlocked: about `1.0`
 
-同时检查：
+Also check:
 
 ```powershell
 nvidia-smi
 ```
 
-以及 Windows 系统事件中是否出现 `nvlddmkm`、Display 或 Xid 错误。
+and look for `nvlddmkm`, `Display` or Xid errors in the Windows system log.
 
-## 停止条件与恢复
+---
 
-出现以下任一情况，不要继续下一阶段：
+## Stop conditions and recovery
 
-- PCI ID、子系统、BDF 或 FWSEC 几何与目标配置不一致；
-- FLR 不受支持；
-- `release preflight` 失败；
-- 显示驱动无法恢复；
-- FWSEC、权限、选择器、FLR 或 POST-GOP 回读不匹配；
-- Windows 出现设备错误、Xid、花屏或持续黑屏。
+Stop and do not continue to the next stage if any of these happen:
 
-如果屏幕显示 `STOPPED. Power OFF with the power button.`，或真实事务后长时间无法
-进入 Windows：
+- PCI ID, subsystem, BDF or FWSEC geometry differs from the target profile
+- FLR is not supported
+- `release preflight` fails
+- the display driver cannot be restored
+- any selector, permission, FLR or POST-GOP readback does not match
+- Windows reports a device error, Xid, corruption or a persistent black screen
 
-1. 长按电源键彻底断电；
-2. 拔掉 U 盘；
-3. 再次开机选择原来的 Windows Boot Manager。
+If the screen shows `STOPPED. Power OFF with the power button.`, or the machine
+does not reach Windows within about two minutes after a real transaction:
 
-所有修改都是易失的，完全断电会恢复 stock 状态。
+1. Hold the power button until the machine is fully off.
+2. Remove the USB drive.
+3. Boot the original Windows Boot Manager.
 
-## 关于自动启动
+All changes are volatile; a full power-off returns the card to stock.
 
-默认构建不生成自动真实解锁镜像，也不提供修改内置 ESP/BootOrder 的安装脚本。
-完成多次冷启动和实际工作负载稳定性验证前，不建议自动化。自动化不会让解锁永久化，
-它只是每次开机自动重复 UEFI 事务。
+The unlock is also lost after sleep/resume, a driver restart, or a driver
+update. Reboot with the USB to unlock again.
 
-如果确实需要“插上 U 盘、开机就解锁”，可以显式构建自动镜像：
+---
+
+## About automation
+
+The default build has no automatic real-unlock image and no installer that edits
+the internal ESP or the firmware boot order. Automation does not make the unlock
+permanent; it only repeats the UEFI transaction on every boot.
+
+If you still want "plug in the USB, power on, unlocked":
 
 ```powershell
 python build.py --zig C:\path\to\zig.exe --out build --with-auto
 python scripts/make_stick.py --build build --assets assets --out stick --variant auto
 ```
 
-然后在固件里把该 U 盘排在 Windows Boot Manager 之前。拔掉 U 盘后应回退到
-Windows。自动镜像仍然只接受 `target_2820.h` 的精确目标。
+Then put that USB ahead of Windows Boot Manager in the firmware. Removing the
+USB should fall back to Windows. The automatic image still admits only the exact
+target profile.
 
-## 项目结构
+---
+
+## Repository layout
 
 ```text
-target_2820.h          精确写入目标配置
-build.py               可复现 EFI 构建（--with-auto 增加自动镜像）
-tools/check_reference_build.py  校验构建是否与记录的哈希一致
-scripts/make_assets.py 从固定 NVIDIA 输入生成资产
-scripts/make_stick.py  生成分阶段 U 盘目录
-firmware/              固件下载、校验与生成器
-vendor/                上游保留的事务核心和 EDK2 头文件
-compat/                UEFI 兼容层
-tests/                 模拟 PCI/MMIO/DMA/失败场景测试
-docs/                  已验证机器的报告、日志和性能结果
+target_2820.h                  exact write target
+build.py                       reproducible build (--with-auto adds the auto image)
+tools/check_reference_build.py verifies the build against recorded hashes
+scripts/make_assets.py         generates firmware assets from pinned NVIDIA inputs
+scripts/make_stick.py          builds staged USB directories
+firmware/                      download, verify and generation scripts
+vendor/                        retained transaction core and EDK2 headers
+compat/                        UEFI compatibility layer
+tests/                         simulated PCI/MMIO/DMA/failure suites
+docs/                          hardware report, logs, reference hashes
 ```
 
-## 来源与许可
+---
 
-代码许可证为 GPL-2.0-only。保留了上游许可、来源和第三方说明：
+## Provenance and licensing
+
+Code is GPL-2.0-only. Upstream projects and their licences are recorded in
+`LICENSE*`, `THIRD_PARTY_NOTICES.md`, `UPSTREAM-WINDOWS-NOTICES.md`,
+`NVIDIA-FILES.md` and `provenance.json`.
+
+Upstream work this repository builds on:
 
 - `JustAResearcher/gpu-unlock-ada`
 - `MarvinFS/rtx4090-uefi`
 - `NekoMirra/rtx4060-laptop-tensor-unlock`
 - `Zagitta/gpu-unlock`
-- EDK2 头文件及 NVIDIA 输入的各自许可
+- EDK2 headers, under their own licence
+- NVIDIA firmware inputs, under NVIDIA's own licence, downloaded locally and
+  never redistributed here
 
-详见 `LICENSE*`、`THIRD_PARTY_NOTICES.md`、`UPSTREAM-WINDOWS-NOTICES.md`、
-`NVIDIA-FILES.md` 和 `provenance.json`。
+---
 
-## 免责声明
+## Disclaimer
 
-这是实验性硬件研究代码，可能导致黑屏、启动失败、驱动异常或数据丢失。不要把一个
-机型的成功结果外推到其他笔记本。不要删除精确准入检查来“试试看”。使用者必须能够
-完全断电、进入固件启动菜单并恢复原始 Windows 启动路径。
+Experimental hardware research code, written with AI assistance and verified on
+a single laptop model. It can cause black screens, failed boots, driver faults
+or data loss. Results on one machine do not transfer to another. Do not delete
+the exact-target checks to "make it work". You must be able to cut power, reach
+the firmware boot menu, and boot the original Windows entry.
+
+No warranty of any kind. You are responsible for what you run.
